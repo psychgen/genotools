@@ -1,0 +1,79 @@
+PRSice 2.3.3 (2020-08-05) 
+https://github.com/choishingwan/PRSice
+(C) 2016-2020 Shing Wan (Sam) Choi and Paul F. O'Reilly
+GNU General Public License v3
+If you use PRSice in any published work, please cite:
+Choi SW, O'Reilly PF.
+PRSice-2: Polygenic Risk Score Software for Biobank-Scale Data.
+GigaScience 8, no. 7 (July 1, 2019)
+2022-05-04 13:07:06
+/cluster/p/p471/cluster/common/prsice/PRSice_linux \
+    --a1 A1 \
+    --a2 A2 \
+    --all-score  \
+    --bar-levels 5e-08,1e-07,5e-07,1e-06,5e-06,1e-05,5e-05,0.0001,0.0005,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,0.01,0.011,0.012,0.013,0.014,0.015,0.016,0.017,0.018,0.019,0.02,0.021,0.022,0.023,0.024,0.025,0.026,0.027,0.028,0.029,0.03,0.031,0.032,0.033,0.034,0.035,0.036,0.037,0.038,0.039,0.04,0.041,0.042,0.043,0.044,0.045,0.046,0.047,0.048,0.049,0.05,0.051,0.052,0.053,0.054,0.055,0.056,0.057,0.058,0.059,0.06,0.061,0.062,0.063,0.064,0.065,0.066,0.067,0.068,0.069,0.07,0.071,0.072,0.073,0.074,0.075,0.076,0.077,0.078,0.079,0.08,0.081,0.082,0.083,0.084,0.085,0.086,0.087,0.088,0.089,0.09,0.091,0.092,0.093,0.094,0.095,0.096,0.097,0.098,0.099,0.1,0.2,0.3,0.4,0.5,1 \
+    --base /cluster/p/p471/cluster/common/gwas_sumstats/adhd_eur_jun2017 \
+    --base-info INFO:0.9 \
+    --binary-target T \
+    --bp BP \
+    --chr CHR \
+    --clump-kb 250kb \
+    --clump-p 1.000000 \
+    --clump-r2 0.100000 \
+    --fastscore  \
+    --lower 5e-08 \
+    --maf 0.01 \
+    --no-default  \
+    --no-regress  \
+    --num-auto 22 \
+    --or  \
+    --out /cluster/p/p471/cluster/common/raw_prsice_output/laurie//2022-05-04/maf0.01/clump250_1_0.1/adhd/adhd \
+    --print-snp  \
+    --pvalue P \
+    --seed 1434630160 \
+    --snp SNP \
+    --stat OR \
+    --target /cluster/p/p471/cluster/data/genetic_data/MoBaPsychGen_v1/MoBaPsychGen_v1-ec-eur-batch-basic-qc \
+    --thread 1 \
+    --x-range chr6:25000000-34000000
+
+Initializing Genotype file: 
+/cluster/p/p471/cluster/data/genetic_data/MoBaPsychGen_v1/MoBaPsychGen_v1-ec-eur-batch-basic-qc 
+(bed) 
+
+Start processing adhd_eur_jun2017 
+================================================== 
+
+Base file: 
+/cluster/p/p471/cluster/common/gwas_sumstats/adhd_eur_jun2017 
+Header of file is: 
+CHR	SNP	BP	A1	A2	INFO	OR	SE	P 
+
+8094094 variant(s) observed in base file, with: 
+64852 variant(s) excluded as they fall within x-range 
+region(s) 
+733611 variant(s) with INFO score less than 0.900000 
+1021160 ambiguous variant(s) excluded 
+6274471 total variant(s) included from base file 
+
+Loading Genotype info from target 
+================================================== 
+
+207409 people (92228 male(s), 114734 female(s)) observed 
+134468 founder(s) included 
+
+2082399 variant(s) not found in previous data 
+332 variant(s) with mismatch information 
+4899017 variant(s) included 
+
+Calculate MAF and perform filtering on target SNPs 
+================================================== 
+
+4899017 variant(s) included 
+
+Start performing clumping 
+
+Number of variant(s) after clumping : 141175 
+
+Start calculating the scores 
+

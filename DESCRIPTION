@@ -1,0 +1,28 @@
+Package: genotools
+Type: Package
+Title: Facilitates Reproducible Workflows With from MoBa Genotype Data in p471
+Version: 0.3.1
+Authors@R: c(person("Laura", "Hegemann", email = "laura.elizabeth.hegemann@fhi.no",
+                  role = c("aut")),
+                  person("Laurie", "Hannigan", email = "Laurie.Hannigan@fhi.no",
+                  role = c( "cre")))
+Description: The main goal of the **genotools** package is to aggregate functions for creating, retrieving, and processing polygenic scores in p471.
+    Further functionality incorporating other aspects of work with genomic data is planned.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
+Depends: R (>= 3.6)
+Imports:
+    dplyr, 
+    stringr,
+    tidyr,
+    readxl,
+    purrr,
+    readr,
+    ssh,
+    data.table
+Suggests: 
+    rmarkdown,
+    knitr
+VignetteBuilder: knitr

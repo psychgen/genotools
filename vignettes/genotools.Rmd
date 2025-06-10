@@ -1,0 +1,275 @@
+---
+title: "genotools"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{genotools}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, echo = F, message=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+library(genotools)
+library(dplyr)
+mask_ids <- function(x){
+  
+  max.val = nrow(x)*10
+  count <- nchar(as.character(max.val))         
+  size <- paste("%0",count,"d",sep="")  
+  nums <- sprintf(size,sample(1:max.val)[1:nrow(x)])  
+  dat<- x %>% 
+    dplyr::mutate(across(matches("id"), ~ sprintf(size,sample(1:max.val)[1:nrow(x)])  ))
+  return(dat)
+}
+
+```
+
+The **genotools** package primarily provides functions to help make and use pre-made polygenic scores with MoBa data in p471.
+
+*This testing version of 0.3.1 implements a new pipeline using ldpred2 as the primary software for making scores. Recommended QC of summary statistics prior to estimating weights in ldpred2 is also added. Most downstream functions (fetch_pgs, etc) are backwards compatible with prsice2.*
+
+
+
+## Using pre-made scores
+
+The first step is to ascertain which PGS are available and what names you need to refer to them by in your request. This is done using the `available_pgs` function. This can be used in conjunction with `pgs_search`, a free text search function:
+
+
+```{r available_pgs, echo = T}
+
+available_pgs() %>%
+  pgs_search("adhd")
+  
+
+```
+If you are conducting within-family analyses (for example, trio-pgs models) it is recommended to use a more stringent filter on imputation quality. Setting the option to `within_fam = TRUE` shows scores that have been estimated using the MoBa genetic data that only includes variants with INFO scores >= 0.95. 
+
+
+The output provides all the details we have in the metadata, including where the sumstats are sourced from. The Pheno_shortname column has the unique shortened version of the phenotype name that can be used to reference the scores in other functions.
+
+To get scores from the directory for use in analyses, you need to run the `fetch_pgs` function:
+
+```{r fetch, echo = T}
+adhd_mdd_pgs <- fetch_pgs(c("adhd2022","mdd2025")) 
+
+head(adhd_mdd_pgs %>% 
+  mask_ids()) #We replace the actual IDs here for demo purposes
+```
+
+The fetched PGS dataframe has  IID (individual ID, sentrix) and FID (family id, plink/KING) as identification variables. For scores estimated using LDpred2, these are from the auto model.  Use `within_fam = TRUE` to fetch scores for use in within family analyses. 
+Importantly, these scores **are not** controlled for PCs, genotyping batch, or imputation batch. To do so you need to use `process_pgs`. 
+
+See the help pages for prsice2 scores and their proptions regarding maf, clumping, thresholds, and more.
+
+
+
+## Making polygenic scores
+
+If you need polygenic scores that are not in the shared directory, the `make_pgs` function can, with correctly formatted summary statistics and appropriate inputs, complete all steps necessary to estimate weights and PGS using LDpred2. This involves preparing and submitting a job script to the HPC, so a bit of set up is required.
+
+### Steps to install R packages needed to create PGS using LDpred2 on Colossus 
+
+1. Open a Colossus session using putty 
+2. In the command line: 
+	`module load R/4.4.2-gfbf-2024a`
+	`R` 
+3. R session should open; check that it is version 4.4.2. Install the required packages using: `install.packages(c("ggplot2","bigsnpr","bigreadr","data.table","tidyverse", "Cairo"))`. Agree to using a local library.
+	
+
+4. After all packages are installed quit R session:  
+	`q()`` 
+No need to save a workspace image. 
+
+5. Back in your Windows-vm R session, make sure you have the `ssh` package installed to allow genotools to initialise a connection to the cluster.
+
+Now you should be ready to create a score. The `make_pgs` function makes a directory in you working directory with the name of you tsd username (input for the user argument). In this directory will be another directory with the shortname of the PGS. The function creates and R script with some QC of the summary statistics and estimation of the weights and scores for both the LDpred2 infinitesimal and auto model as well as the submission script in this directory. The function will then automatically submit the job to the cluster. 
+
+If do not want to submit the job automatically you can set the argument `submit_ssh = FALSE`. You may want to do this if, for example, you would like to make changes to the QC or want the QC graphs to save (see below). Note if you manually submit the submission script on the cluster, you must have your working directory be the directory the submission and R script is in.  
+
+If you want to make scores for within family analyses set `genotype_data = "genoHapMap3plus_filter_N200k.rds"`
+
+Study the documentation for the `make_pgs` function, and familiarise yourself with the guidance for creating scores using LDpred2 (e.g., https://privefl.github.io/bigsnpr/articles/LDpred2.html) to ensure you have correctly formatted summary statistics. While we have tried to make the QC pipeline accurate and robust, it is ultimately your responsibility to ensure everything has run correctly. Note that in some cases scores can still be returned even when there are issues with the QC, so it is important to check and read through output files and perform sanity checks on the PGS. See below for an example of the correct inputs:
+
+```{r make_pgs, echo = T, eval=F}
+
+library(genotools)
+
+make_pgs(user = "p471-lauriejh",
+         host="p471-hpc-01.tsd.usit.no",
+         software = "ldpred2",
+         shortname = "diet-pc1",
+         account="p471",
+         cpu_time="05:00:00",
+         memory="2G",
+         cores=32,
+         lib="//ess/p471/data/durable/common/rlibs/4-3-2",
+         sumstats_dir="//ess/p471/data/no-backup/gwas_sumstats/",
+         outputs_dir="//ess/p471/data/durable/people/laurie",
+         sumstats_filename = "BOLTlmm_UKB_genoQCEURN455146_v3_diet_ffq_median_PC1_BgenSnps_mac20_maf0.005_info0.6.gz",
+         genotype_dir="//ess/p471/data/durable/data/genetic/MoBaPsychGen_v1/",
+         genotype_data="genoHapMap3plus_N200k.rds",
+         ldref_dir="//ess/p471/data/durable/data/genetic/ldref/",
+         case_control =FALSE,
+         A1 = "ALLELE1",
+         A2 = "ALLELE0",
+         stat = "BETA",
+         stat_type = "BETA",
+         pvalue = "P_BOLT_LMM",
+         SNP = "SNP",
+         CHR= "CHR",
+         BP = "BP",
+         SE = "SE",
+         N = 449210,
+         info = "INFO",
+         MAF = "A1FREQ",
+         maf_threshold = 0.01,
+         source = "http://www.kp4cd.org/dataset_downloads/t2d",
+         pmid =32193382,
+         pgs_meta=genotools::pgs_metadata)
+
+```
+
+
+`fetch_pgs` can be used with scores created from `make_pgs` in the same way as if getting scores from the PGS repository. The only difference is that you will need to specify the pgs_directory. This will be outputs_dir/user. So to fetch the scores created in the above example, you add the following argument to `fetch_pgs` : `pgs_directory = "//ess/p471/data/durable/people/laurie/p471-lauriejh"` 
+
+### Making multiple scores at once
+
+If you need to make multiple scores, you can create a dataframe with the column names being the arguments for `make_pgs` and each row being the inputs for those arguments for each PGS, for example: 
+
+```{r multi, echo = F}
+
+sum <- readxl::read_xlsx("//ess01/p471/data/durable/common/pgs_directory/pgs/ldpred2/sumstats_key.xlsx")  
+
+run_pgs <- sum %>%
+  mutate(sumstats_dir = "//ess/p471/data/durable/people/Laura_H/",
+         outputs_dir = "//ess/p471/data/durable/people/Laura_H/",
+         user = "p471-lauraeh", 
+         cpu_time="03:00:00",
+         memory="3G",
+         pmid = as.character(pmid_or_doi)) %>%
+  select(!c(MoBa_removed, `notes/edits`,trait_name,pmid_or_doi)) %>%
+  filter(!is.na(sumstats_filename))
+
+head(run_pgs)
+
+
+```
+
+
+And then use the following code: 
+
+
+```{r multi2, echo = T, eval=FALSE}
+
+library(purrr)
+
+safe_pgs <- safely(make_pgs) #wraps make_pgs in safely so if one PGS fails it moves on to the next instead of failing completely
+
+run_pgs %>%
+  pwalk(safe_pgs)
+
+
+```
+
+
+For traits already in the PGS repository there is an excel spreadsheet (//ess01/p471/data/durable/common/pgs_directory/pgs/ldpred2/sumstats_key.xlsx) in this format that can be used to remake scores from the repository. For example, if you need different QC parameters than the defaults. Note you will need to remove columns that are not arguments in `make_pgs` and add columns for user specific information (i.e user, outputs_dir, etc.)
+
+
+### Processing PGS for use with MoBa phenotypic data 
+
+ To use the PGS with MoBa phenotypic data, you need preg_id and BARN_NR variables. These can be retrieved for your dataframe by running the `process_pgs` function on it. The other important feature of this function is to provide essential covariates (20PCs,  genotyping batch, and imputation batch) and/or regress the raw PGS on these covariates:
+
+```{r process, echo = T}
+
+adhd_mdd_pgs_procd <- process_pgs(adhd_mdd_pgs,
+                                  regress_pgs = TRUE,
+                                  return_covs=TRUE)
+# You get back raw and residualised scores and the covariates with these options
+names(adhd_mdd_pgs_procd)
+
+head(adhd_mdd_pgs_procd %>% 
+  mask_ids()) #We replace the actual IDs here for demo purposes)
+```
+The "_res" variables should be ready-to-use PGS for analyses. You should perform sanity checks to validate this.
+
+## Overview of QC
+
+
+### Basic QC
+
+
+1. If MAF or allele FRQ columns are provided, variants under specified frequency are removed (default and for scores in the repository this is 0.01). 
+
+2. If Info scores are provided, variants with INFO < 0.6 are removed. 
+
+3. Variants are matched to the reference panel (we are currently using one for 1,444,196 HapMap3+ variants based on European individuals of UK biobank: https://figshare.com/articles/dataset/LD_reference_for_HapMap3_/21305061) so only variants in common between summary statistics and the reference panel are kept. If less than 0.1% are flipped these SNPs are dropped (assumed to be an error). 
+
+
+### QC based on comparing standard deviation (SD) of variants 
+The basis of this QC is comparing the SD of variants calculated in two different ways. 
+
+1. SD based on allele frq is calculated (sd_ldref). The default and what is used for scores in the repository is to calculate this using the allele frq from the reference panel. This is what is done in example code from the 2020 Privé, et al. paper (https://github.com/privefl/paper-ldpred2/blob/master/code/example-with-provided-ldref.R), it has also been recommended to calculate this based on allele frq provided in summary statistics and what is done in the code for the 2022 Privé, Arbel, et al. paper (https://github.com/privefl/paper-misspec/tree/main/code/prepare-sumstats). To use allele frq provided in summary statistics set option `sd_maf = TRUE`
+
+2. SD based on N,SE, and beta (and estimated sd of the phenotype for continuous GWAS) is calculated (sd_ss). If INFO scores are provided the sd calculation is adjusted for imputation quality of the variants using these. This step is a new addition in genotools 0.3.1. If you'd like to not perform this correction, either filter on INFO < 0.6 (or any other desired threshold) prior to running make_pgs and do not include the INFO column in the arguments of the function or hash out lines 486 - 491 and 502-506 in the .pipl script and submit the job manually. 
+
+3. The two SD estimates are compared and variants not meeting QC filters are removed. For all summary statistics, QC1 in Privé, Arbel, et al. (2022) is performed this includes the following thresholds: sd_ss < (0.7 * sd_ldref) OR  sd_ss > (sd_ldref + 0.1) OR sd_ss < 0.1 OR sd_ldref < 0.05.  This is slightly more restrictive than the QC originally recommend in Privé, et al. (2020) and what was used in versions previous to 0.3.1. This orginal QC was the same but the first threshold was sd_ss < (0.5 * sd_ldref).
+
+If you'd like to use this QC threshold then you can change line 529 and 535 to `is_bad_qc2 <- is_bad` in the .pipl script and submit it manually. 
+
+If allele frequency is provided in the summary statistics, the default is that a third threshold is used in addition to the previous is used, this is QC2 in Privé, Arbel, et al. (2022). This threshold removes variants with an allele frequency that differs by >0.1 between the summary statistics and the reference panel. If you do not want this step you can change line 535 to `is_bad_qc2 <- is_bad2` in the .pipl script and submit it manually. This will mean QC1 is performed. 
+
+### How to interpret QC and Imputation of Neff
+
+**Please look through the output file and double check that the columns are correct, the inputs are being interpreted as intended, the QC steps you intended ran, and a sensible number of variants are matching to the reference panel estimation, etc. ** 
+
+**The job may not fail and still create PGS even if there is something wrong with these or if there are a large number of variants failing QC.**   
+ 
+In the output file there is a line that say "xx SNP are bad". This is the number of SNPs removed from the QC based on SD of the variants. When the submission script is submitted to colossus manually a plot comparing the two SDs is created. 
+
+As a rule of thumb, lots of SNPs removed means there is likely misspecification of the Neff. If sd_ldref > sd_ss, variants will fall below / to the right of the center line (when sd_ldref = sd_ss) in the SD QC plot. This means sd_ss is underestimated - typically Neff is too large. Likewise if they are above the line, the Neff is likely overestimated. If the GWAS used BOLT-LMM or SAIGE then the provided Neff may be under (SAIGE) or over (BOLT-LMM) estimated. There is additional correction that can be done (global power improvement) if BOLT_LMM was used. If this is the case, see Privé, Arbel, et al. (2022) for more details. 
+
+If more half of the variants fail QC the Neff is automatically imputed. If this is the case, **double check that all columns (particularly the N column) are correct**. Common issues may be: 
+
+A) that the Neff is actually half of the effective sample size  
+
+B) the Neff has been estimated from overall case/controls rather than the sum of Neff calculated in each cohort separately. 
+
+If the GWAS is a meta analysis and minimum INFO scores (as opposed to average) are reported it may be worth rerunning and not correcting the SD estimates with INFO scores. Please note that, particularly for continuous traits, be skeptical of the imputation and double check what is being done with the most recent recommendations from the literature.  
+
+
+Another plot that is generated is the path of the chains from the auto model. You should check this plot to make sure the chains converged (the points should "travel" to the blue line). See https://privefl.github.io/bigsnpr/articles/LDpred2.html for an example. Filtering of bad chains is implemented automatically in the script. 
+
+If you have questions on or spot errors/bugs in the QC or interpretation please email: laura.elizabeth.hegemann@fhi.no
+
+
+#### Sources: 
+
+The LDpred2 pipeline is adapted from Andre Allegrini see https://github.com/AndreAllegrini/LDpred2/tree/main, which was based on recommendations outline here: https://privefl.github.io/bigsnpr/articles/LDpred2.html 
+
+**Reference panel was download here**: https://figshare.com/articles/dataset/LD_reference_for_HapMap3_/21305061. Recommend in this paper (citation to use): 
+
+Privé, F., Albiñana, C., Arbel, J., Pasaniuc, B., & Vilhjálmsson, B. J. (2022). Inferring disease architecture and predictive ability with LDpred2-auto. The American Journal of Human Genetics, 110(12), 2042-2055.
+
+**Current QC recommendations (citation to use):**
+
+Privé, F., Arbel, J., Aschard, H., & Vilhjálmsson, B. J. (2022). Identifying and correcting for misspecifications in GWAS summary statistics and polygenic scores. Human Genetics and Genomics Advances, 3(4), 100136. 
+
+**LDpred2 software citation and original QC recommendations:**
+
+Privé, F., Arbel, J., & Vilhjálmsson, B. J. (2020). LDpred2: better, faster, stronger. Bioinformatics, 36(22-23), 5424-5431.
+
+**Useful source for calculating Neff:**
+
+https://github.com/GenomicSEM/GenomicSEM/wiki/2.1-Calculating-Sum-of-Effective-Sample-Size-and-Preparing-GWAS-Summary-Statistics 
+
+
+
+
+
+ 
+
